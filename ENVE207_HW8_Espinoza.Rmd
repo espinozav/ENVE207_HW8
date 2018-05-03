@@ -1,0 +1,301 @@
+---
+title: "Homework 8"
+author: "Vicky Espinoza"
+date: "due May 3, 2018 @ 11:50PM"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Time Series Analysis 
+
+```{r}
+data(Nile)
+Nile
+?Nile
+class(Nile)
+plot(Nile)
+```
+
+1. What is the class of Nile? What is the time interval of the time series?
+
+The Nile dataset is a time series *("ts")* of length 100 
+and the time interval ranges from 19871 -1970. 
+
+## Reading and Wrangling CA Ozone Data 
+
+```{r}
+require(tidyverse)
+daily.mean <- function(df) {
+  df %>% 
+  group_by(site = as.factor(site), date) %>% 
+  summarize(o3 = mean(obs, na.rm = TRUE)) %>% 
+  drop_na()  
+  }
+d <- map(o3.filelist, daily.mean)
+d
+
+```
+
+```{r}
+require(purrr)
+filter.station <- function(df, x) {
+  df %>% 
+  filter(site == x)
+}
+sb.o3 <- map(d, filter.station, 2008)
+sb.o3
+```
+
+```{r}
+sb <- sb.o3 %>% 
+  bind_rows()
+sb
+```
+```{r}
+ggplot(sb, aes(x = date, y = o3)) + geom_line()
+
+```
+
+```{r}
+sb.ts <- ts(sb$o3, start = c(1980,1), frequency = 365.25)
+sb.ts
+```
+2. *ts()* only handles regularly spaced time series data. How do we deal with irregularly spaced time series? Do some internet research and describe some options, as well as pitfalls or limitations.
+
+Option 1 : Use the function *irts* to create irregular time-series objects. When using this option the timestamps need to be in a numberic vector or vector of class "POSIXct". 
+http://math.furman.edu/~dcs/courses/math47/R/library/tseries/html/irts.html
+
+Option 2 (warning): some people will chose to interpolate their data to create a regular time series, but this should only be used if one thinks that the interpolation will generate values with the same distribution of original points.
+Some cons with this is that interpolation could lead to biases.  
+https://stackoverflow.com/questions/38723185/how-to-turn-interpolate-this-irregularly-spaced-time-series-into-a-regularly-s
+
+## Plotting Time Series 
+
+```{r}
+plot.ts(sb.ts)
+```
+
+```{r}
+acf(sb.ts)
+```
+Reducing data to monthly data
+```{r}
+sb$mo <- as.factor(lubridate::month(sb$date))
+ggplot(sb, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
+```
+monthly median
+```{r}
+require(lubridate)
+sb$yr <- year(sb$date)
+sb.mo <- sb %>%
+  select(-site, -date) %>% 
+  group_by(yr, mo) %>% 
+  summarize(o3 = median(o3)) 
+sb.mo
+```
+```{r}
+ggplot(sb.mo, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
+
+```
+What does our autocorrelation look like?
+Better :) 
+```{r}
+sb.mo.ts <- ts(sb.mo$o3, start = c(1980, 1), frequency = 12)
+acf(sb.mo.ts)
+```
+
+3. What is the approximate lag for the o3 at this site in SB? Provide this in meaningful units?
+The lag is about every 2-3 months for o3 in the site at SB. 
+
+If we want to reassure ourselved that this lag of every 2-3 months is indeed a strong pattern then we can take the absolute correlations and visualize them with a box plot. F=If the trend is decreasing gradualy then this is representative of a strong autocorrelated dataset. 
+I like this source (very clear, concise explanation and steps) http://www.business-science.io/timeseries-analysis/2017/08/30/tidy-timeseries-analysis-pt-4.html
+
+## Partial Autocorrelation 
+```{r}
+pacf(sb.mo.ts)
+```
+
+4. Interpret this plot. What does this tell us? Use internet research as appropriate. 
+There is strong relationship to the lag and no trailing off of correlation from the lag onwards. Note PACF starts with a lag of 1 where ACF starts with a lag of 0. 
+
+https://machinelearningmastery.com/gentle-introduction-autocorrelation-partial-autocorrelation/
+
+## Modeling our Time Series 
+
+```{r}
+plot.ts(sb.mo.ts)
+
+```
+
+5. Transform monthly SB o3 time series by calculating the natural log and plot the results. Which cases (original or transformed) is best described by an addititive model?
+
+```{r}
+sb.mo.log<-log(sb.mo.ts)
+plot.ts(sb.mo.log)
+```
+Both the log and the original look the same in my case (Did I do something wrong?)
+
+## Reminder of what additive models are: Stationry and Decomposing Time Series
+
+6. What class is the resulting object from applying *decompose()*? What does it contain?
+The function decomposes a time series into a seasonal, trend and irregular components using moving averages. Deals with additive or multiplicative seasonal component.
+The function contains a time series, the type of seasonal component, and the filter coefficients in reverse time order (AR or MA) used for filtering out the seasonal component. It deals with NA by performing a moving average with a symmetric window over that NA value
+
+## Lag a Time Series
+
+```{r}
+lagged.sb <- stats::lag(sb.mo.ts, 1)
+plot(lagged.sb)
+```
+
+## Seasonally adjusting a time series 
+
+```{r}
+sb.components <- decompose(sb.mo.ts, type = "additive")
+plot(sb.components)
+
+sb.adj <- sb.mo.ts - sb.components$seasonal
+plot(sb.mo.ts)
+lines(sb.adj, col = "red")
+```
+
+```{r}
+plot(sb.mo.ts, xlim = c(2005,2010))
+lines(sb.adj, col = "red")
+```
+
+ 
+7. Assess the additive model performance. How well did it ajust for seasonality in SB o3? Show your steps. 
+
+```{r}
+
+sb.comp.adj <- decompose(sb.adj, type = "additive")
+plot(sb.comp.adj)
+
+
+
+```
+
+From the figure we can see that the additive model did a good job of adjusting for seasonality. The onserved and seasonal trends have changed from the original sb.mo.ts decomposition of additive time series plot to reflect the seasonality trend. The overall trend, however, has remained the same which is expected because we are not expecting an overall trend chnage but rather adjusting to seasonality. 
+
+
+## Trend Testing: MK Trend Test 
+
+```{r}
+require(wql)
+mk <- mannKen(sb.mo.ts)
+mk
+```
+
+## Seasonal MK
+
+```{r}
+mk2 <- seaKen(sb.mo.ts)
+mk2
+seasonTrend(sb.mo.ts, plot = TRUE, scales = "free")
+plotSeason(sb.mo.ts, "by.month")
+```
+ 8. What can you conclude about the appropriateness of the Seasonal MK test for trend in this case?
+
+The seasonal MK is not appropriate for the the trend in this case because the trend within each month is not stationary and variable. This does not allow us to have seasonal trends, so a seasonl MK has no meaningful interpretation. 
+ 
+ 
+## Identify a Change Point 
+
+```{r}
+pett(sb.mo.ts)
+plot(sb.mo.ts, ylab = "Ozone", xlab = "")
+abline(v = 2001.083, col = "blue")
+```
+
+##Visualizing Anomalies 
+
+```{r}
+plotTsAnom(sb.mo.ts, ylab = "Ozone")
+```
+
+```{r}
+plotTsTile(sb.mo.ts)
+```
+
+9. What are the trends in monthly Ozone across CA from 1980-2011? Compare trends between different air quality basins. Show your work and justify your statistical assumptions. 
+
+The very apparent trend in monthly ozone across CA from 1980-2011 is that high ozone values are present during the months of March through May and lower values for months Jan and December. All other months are varaible throughout the study period. 
+
+Comparing trends between different air quality basins (not really sure what is being asked but here is my take on this section):
+
+I interpret the basins to be site specific so I am adjusting the dataset to include site.
+
+```{r}
+require(lubridate)
+sb2$mo <- as.factor(lubridate::month(sb2$date))
+sb2$yr <- year(sb2$date)
+sb2.mo <- sb2 %>%
+  select(-date) %>% 
+  group_by(site,yr, mo) %>% 
+  summarize(o3 = mean(o3), nO3=n())  #note I am taking the mean to conduct the variance of means along with the number of o3
+sb2.mo
+```
+
+I will do analysis of ranks between sites:
+
+```{r}
+require(tidyverse)
+
+sb2.mo$rank <- rank(sb2.mo$o3, ties.method = "average")
+# let me also make StationCode a factor to make my life easier later on
+sb2.mo$site <- as.factor(sb2.mo$site)
+sb2.mo
+```
+
+let's plot to make sure things are look good....based on the plot below things are looking great! Let's proceed. 
+
+```{r}
+ggplot(sb2.mo, aes(x = rank, y = rank)) + geom_point()
+```
+
+Performing the ANOVA on my analysis
+
+```{r}
+rank.aov <- aov(rank ~ site, data = sb2.mo)
+
+ggplot(sb2.mo, aes(x = site, y = o3)) + geom_boxplot() +
+  xlab("site") + ylab ("Mean Annual o3")
+```
+
+
+```{r}
+rank.aov
+summary.aov(rank.aov)
+```
+
+F value is 79.35 and we have a low p-value. We can accep that there is a significant relationship between site and o3 value. 
+
+```{r}
+confint(rank.aov)
+```
+ Test our assumptions
+ 
+```{r}
+layout(matrix(c(1,2,3,4),2,2)) # optional layout 
+plot(rank.aov) # diagnostic plots
+```
+ 
+For the residual vs fitter plot...hm i want to feel concerned because there seems to be a linear decreasing trend. 
+
+Scale-location plot: hard to interpret but the red line shows that there are increases in values of about 30000. 
+
+QQplot shows that these are not normal therefore we may have potentially violated the assumptions of ANOVA. I will try a KW test. 
+
+Based on the Cook's distance plot it doesn't look like any values are above one representing high influence on the dataset. 
+
+Let's do the KW test now: 
+
+```{r}
+kw <- kruskal.test(o3 ~ site, data = sb2.mo)
+kw
+```
+ Okay so since our p-value is small it is safe to say that like the ANOVA the KS test allows us to deduct that there are differenes in o3 values between sites and are statistically significant. 
+
+
