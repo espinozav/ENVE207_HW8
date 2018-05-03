@@ -24,8 +24,9 @@ and the time interval ranges from 19871 -1970.
 
 ## Reading and Wrangling CA Ozone Data 
 
-```{r}
+```{r error=TRUE}
 require(tidyverse)
+load(file="o3filelist.RData")
 daily.mean <- function(df) {
   df %>% 
   group_by(site = as.factor(site), date) %>% 
@@ -37,7 +38,7 @@ d
 
 ```
 
-```{r}
+```{r error=TRUE}
 require(purrr)
 filter.station <- function(df, x) {
   df %>% 
@@ -47,17 +48,17 @@ sb.o3 <- map(d, filter.station, 2008)
 sb.o3
 ```
 
-```{r}
+```{r error=TRUE}
 sb <- sb.o3 %>% 
   bind_rows()
 sb
 ```
-```{r}
+```{r error=TRUE}
 ggplot(sb, aes(x = date, y = o3)) + geom_line()
 
 ```
 
-```{r}
+```{r error=TRUE}
 sb.ts <- ts(sb$o3, start = c(1980,1), frequency = 365.25)
 sb.ts
 ```
@@ -72,20 +73,20 @@ https://stackoverflow.com/questions/38723185/how-to-turn-interpolate-this-irregu
 
 ## Plotting Time Series 
 
-```{r}
+```{r error=TRUE}
 plot.ts(sb.ts)
 ```
 
-```{r}
+```{r error=TRUE}
 acf(sb.ts)
 ```
 Reducing data to monthly data
-```{r}
+```{r error=TRUE}
 sb$mo <- as.factor(lubridate::month(sb$date))
 ggplot(sb, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
 ```
 monthly median
-```{r}
+```{r error=TRUE}
 require(lubridate)
 sb$yr <- year(sb$date)
 sb.mo <- sb %>%
@@ -94,13 +95,13 @@ sb.mo <- sb %>%
   summarize(o3 = median(o3)) 
 sb.mo
 ```
-```{r}
+```{r error=TRUE}
 ggplot(sb.mo, aes(x = mo, y = o3, group = mo)) + geom_boxplot()
 
 ```
 What does our autocorrelation look like?
 Better :) 
-```{r}
+```{r error=TRUE}
 sb.mo.ts <- ts(sb.mo$o3, start = c(1980, 1), frequency = 12)
 acf(sb.mo.ts)
 ```
@@ -112,7 +113,7 @@ If we want to reassure ourselved that this lag of every 2-3 months is indeed a s
 I like this source (very clear, concise explanation and steps) http://www.business-science.io/timeseries-analysis/2017/08/30/tidy-timeseries-analysis-pt-4.html
 
 ## Partial Autocorrelation 
-```{r}
+```{r error=TRUE}
 pacf(sb.mo.ts)
 ```
 
@@ -123,14 +124,14 @@ https://machinelearningmastery.com/gentle-introduction-autocorrelation-partial-a
 
 ## Modeling our Time Series 
 
-```{r}
+```{r error=TRUE}
 plot.ts(sb.mo.ts)
 
 ```
 
 5. Transform monthly SB o3 time series by calculating the natural log and plot the results. Which cases (original or transformed) is best described by an addititive model?
 
-```{r}
+```{r error=TRUE}
 sb.mo.log<-log(sb.mo.ts)
 plot.ts(sb.mo.log)
 ```
@@ -144,14 +145,14 @@ The function contains a time series, the type of seasonal component, and the fil
 
 ## Lag a Time Series
 
-```{r}
+```{r error=TRUE}
 lagged.sb <- stats::lag(sb.mo.ts, 1)
 plot(lagged.sb)
 ```
 
 ## Seasonally adjusting a time series 
 
-```{r}
+```{r error=TRUE}
 sb.components <- decompose(sb.mo.ts, type = "additive")
 plot(sb.components)
 
@@ -160,7 +161,7 @@ plot(sb.mo.ts)
 lines(sb.adj, col = "red")
 ```
 
-```{r}
+```{r error=TRUE}
 plot(sb.mo.ts, xlim = c(2005,2010))
 lines(sb.adj, col = "red")
 ```
@@ -168,7 +169,7 @@ lines(sb.adj, col = "red")
  
 7. Assess the additive model performance. How well did it ajust for seasonality in SB o3? Show your steps. 
 
-```{r}
+```{r error=TRUE}
 
 sb.comp.adj <- decompose(sb.adj, type = "additive")
 plot(sb.comp.adj)
@@ -182,7 +183,7 @@ From the figure we can see that the additive model did a good job of adjusting f
 
 ## Trend Testing: MK Trend Test 
 
-```{r}
+```{r error=TRUE}
 require(wql)
 mk <- mannKen(sb.mo.ts)
 mk
@@ -190,7 +191,7 @@ mk
 
 ## Seasonal MK
 
-```{r}
+```{r error=TRUE}
 mk2 <- seaKen(sb.mo.ts)
 mk2
 seasonTrend(sb.mo.ts, plot = TRUE, scales = "free")
@@ -203,7 +204,7 @@ The seasonal MK is not appropriate for the the trend in this case because the tr
  
 ## Identify a Change Point 
 
-```{r}
+```{r error=TRUE}
 pett(sb.mo.ts)
 plot(sb.mo.ts, ylab = "Ozone", xlab = "")
 abline(v = 2001.083, col = "blue")
@@ -211,11 +212,11 @@ abline(v = 2001.083, col = "blue")
 
 ##Visualizing Anomalies 
 
-```{r}
+```{r error=TRUE}
 plotTsAnom(sb.mo.ts, ylab = "Ozone")
 ```
 
-```{r}
+```{r error=TRUE}
 plotTsTile(sb.mo.ts)
 ```
 
@@ -227,7 +228,7 @@ Comparing trends between different air quality basins (not really sure what is b
 
 I interpret the basins to be site specific so I am adjusting the dataset to include site.
 
-```{r}
+```{r error=TRUE}
 require(lubridate)
 sb2$mo <- as.factor(lubridate::month(sb2$date))
 sb2$yr <- year(sb2$date)
@@ -240,7 +241,7 @@ sb2.mo
 
 I will do analysis of ranks between sites:
 
-```{r}
+```{r error=TRUE}
 require(tidyverse)
 
 sb2.mo$rank <- rank(sb2.mo$o3, ties.method = "average")
@@ -251,13 +252,13 @@ sb2.mo
 
 let's plot to make sure things are look good....based on the plot below things are looking great! Let's proceed. 
 
-```{r}
+```{r error=TRUE}
 ggplot(sb2.mo, aes(x = rank, y = rank)) + geom_point()
 ```
 
 Performing the ANOVA on my analysis
 
-```{r}
+```{r error=TRUE}
 rank.aov <- aov(rank ~ site, data = sb2.mo)
 
 ggplot(sb2.mo, aes(x = site, y = o3)) + geom_boxplot() +
@@ -265,19 +266,19 @@ ggplot(sb2.mo, aes(x = site, y = o3)) + geom_boxplot() +
 ```
 
 
-```{r}
+```{r error=TRUE}
 rank.aov
 summary.aov(rank.aov)
 ```
 
 F value is 79.35 and we have a low p-value. We can accep that there is a significant relationship between site and o3 value. 
 
-```{r}
+```{r error=TRUE}
 confint(rank.aov)
 ```
  Test our assumptions
  
-```{r}
+```{r error=TRUE}
 layout(matrix(c(1,2,3,4),2,2)) # optional layout 
 plot(rank.aov) # diagnostic plots
 ```
@@ -292,7 +293,7 @@ Based on the Cook's distance plot it doesn't look like any values are above one 
 
 Let's do the KW test now: 
 
-```{r}
+```{r error=TRUE}
 kw <- kruskal.test(o3 ~ site, data = sb2.mo)
 kw
 ```
